@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MogMeNow - AI Facial Rating & Global Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(1000%); }
+        }
+        .scanner-line {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: rgba(0, 255, 128, 0.7);
+            box-shadow: 0 0 10px rgba(0, 255, 128, 0.9);
+            animation: scanline 2.5s linear infinite;
+        }
+        .hud-border {
+            border: 1px solid rgba(0, 255, 128, 0.2);
+            box-shadow: inset 0 0 15px rgba(0, 255, 128, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans min-h-screen flex flex-col selection:bg-emerald-500 selection:text-black">
+
+    <header class="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md px-6 py-4 flex items-center justify-between z-50">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-500 text-black font-black px-3 py-1.5 rounded-lg tracking-wider text-lg shadow-lg shadow-emerald-500/20">
+                MOG<span class="text-white">ME</span>NOW
+            </div>
+            <span class="text-xs text-zinc-400 hidden sm:inline border-l border-zinc-700 pl-3">AI-Powered Global Arena</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-full border border-zinc-700 text-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="font-mono text-emerald-400">ONLINE: 42,819</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+
+        <div id="setup-modal" class="absolute inset-0 z-40 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-center p-4">
+            <div class="bg-zinc-900 border border-zinc-800 p-8 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
+                
+                <h2 class="text-2xl font-black mb-1 tracking-tight text-white">ENTER THE ARENA</h2>
+                <p class="text-xs text-zinc-400 mb-6">No account needed. Setup your alias and jump straight in.</p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Username</label>
+                        <input type="text" id="username-input" placeholder="e.g. ChadThundercock" value="Anon_Mogger" 
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Match Mode</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button type="button" onclick="setMode('1v1')" class="mode-btn py-2.5 rounded-xl border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold text-xs transition-all">1v1</button>
+                            <button type="button" onclick="setMode('2v2')" class="mode-btn py-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 font-bold text-xs transition-all">2v2</button>
+                            <button type="button" onclick="setMode('3v3')" class="mode-btn py-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 font-bold text-xs transition-all">3v3</button>
+                            <button type="button" onclick="setMode('4v4')" class="mode-btn py-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 font-bold text-xs transition-all">4v4</button>
+                        </div>
+                    </div>
+
+                    <button onclick="startMatchmaking()" class="w-full mt-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-sm tracking-wide">
+                        START MOGGING <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="arena-interface" class="w-full max-w-7xl h-[calc(100vh-8rem)] hidden flex flex-col lg:flex-row gap-4">
+            
+            <div class="flex-1 flex flex-col gap-4 h-full">
+                <div id="video-grid" class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+                    
+                    <div class="relative rounded-2xl overflow-hidden hud-border bg-black flex items-center justify-center">
+                        <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                        <div class="scanner-line"></div>
+
+                        <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center space-x-2">
+                            <span class="text-xs text-zinc-400 font-mono">AI SCORE:</span>
+                            <span id="local-score" class="text-emerald-400 font-mono font-black text-sm">7.4/10</span>
+                            <span id="local-tier" class="bg-emerald-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded">True Chad</span>
+                        </div>
+
+                        <div class="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur-md border border-zinc-800 p-2.5 rounded-xl grid grid-cols-4 gap-2 text-center text-[10px]">
+                            <div>
+                                <span class="text-zinc-400 block">CHEEK</span>
+                                <span id="stat-cheek" class="font-bold text-emerald-400">8.2</span>
+                            </div>
+                            <div>
+                                <span class="text-zinc-400 block">EYES</span>
+                                <span id="stat-eyes" class="font-bold text-emerald-400">7.1</span>
+                            </div>
+                            <div>
+                                <span class="text-zinc-400 block">NOSE</span>
+                                <span id="stat-nose" class="font-bold text-emerald-400">6.9</span>
+                            </div>
+                            <div>
+                                <span class="text-zinc-400 block">HAIR</span>
+                                <span id="stat-hair" class="font-bold text-emerald-400">7.8</span>
+                            </div>
+                        </div>
+
+                        <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-zinc-300">
+                            You (<span id="display-username">Anon</span>)
+                        </div>
+                    </div>
+
+                    <div class="relative rounded-2xl overflow-hidden hud-border bg-zinc-900 flex items-center justify-center">
+                        <div class="absolute inset-0 bg-cover bg-center opacity-70" style="background-image: url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80')"></div>
+                        <div class="scanner-line"></div>
+
+                        <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center space-x-2">
+                            <span class="text-xs text-zinc-400 font-mono">AI SCORE:</span>
+                            <span class="text-emerald-400 font-mono font-black text-sm">8.6/10</span>
+                            <span class="bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded">Mogger</span>
+                        </div>
+
+                        <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-zinc-300">
+                            Opponent (Sofia_99)
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="bg-zinc-900/60 backdrop-blur-md border border-zinc-800 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleMic()" id="mic-btn" class="bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <button onclick="toggleCam()" id="cam-btn" class="bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center">
+                            <i class="fa-solid fa-video"></i>
+                        </button>
+                        <div class="flex items-center space-x-2 bg-zinc-800/60 px-3 py-2 rounded-xl border border-zinc-700/50">
+                            <span class="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">Exposure</span>
+                            <input type="range" id="exposure-slider" min="50" max="150" value="100" oninput="adjustExposure(this.value)" class="w-20 accent-emerald-500 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <button onclick="skipPartner()" class="bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all tracking-wide">
+                            SKIP (ESC)
+                        </button>
+                        <button onclick="leaveArena()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-5 py-2.5 rounded-xl font-bold text-xs transition-all tracking-wide">
+                            DISCONNECT
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full lg:w-80 bg-zinc-900/60 backdrop-blur-md border border-zinc-800 rounded-2xl flex flex-col h-72 lg:h-full">
+                <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+                    <h3 class="text-xs font-black tracking-widest text-zinc-400">ARENA CHAT</h3>
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                
+                <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs flex flex-col">
+                    <div class="text-center text-zinc-500 my-auto">Connected to global match session. Say hi!</div>
+                </div>
+
+                <div class="p-3 border-t border-zinc-800 flex items-center space-x-2">
+                    <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="handleChatKey(event)"
+                        class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-emerald-500">
+                    <button onclick="sendMessage()" class="bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2.5 rounded-xl font-bold text-xs transition-all">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        let currentMode = '1v1';
+        let localStream = null;
+        let isMicMuted = false;
+        let isCamOff = false;
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                if(btn.innerText === mode) {
+                    btn.className = "mode-btn py-2.5 rounded-xl border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold text-xs transition-all";
+                } else {
+                    btn.className = "mode-btn py-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 font-bold text-xs transition-all";
+                }
+            });
+        }
+
+        async function startMatchmaking() {
+            const username = document.getElementById('username-input').value.trim() || 'Anon_Mogger';
+            document.getElementById('display-username').innerText = username;
+
+            document.getElementById('setup-modal').classList.add('hidden');
+            document.getElementById('arena-interface').classList.remove('hidden');
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const videoElement = document.getElementById('local-video');
+                videoElement.srcObject = localStream;
+            } catch (err) {
+                console.warn("Camera access denied or unavailable. Running in simulated view mode.");
+            }
+
+            // Start AI evaluation loop simulation
+            setInterval(updateAIScores, 2000);
+        }
+
+        function getTierName(score) {
+            if (score <= 2.0) return { name: "Sub 3", color: "bg-red-500" };
+            if (score <= 3.0) return { name: "Sub 5", color: "bg-orange-500" };
+            if (score <= 4.0) return { name: "LTN", color: "bg-amber-500" };
+            if (score <= 5.0) return { name: "MTN", color: "bg-yellow-500" };
+            if (score <= 6.0) return { name: "HTN", color: "bg-lime-500" };
+            if (score <= 7.0) return { name: "Chad", color: "bg-emerald-500" };
+            if (score <= 8.0) return { name: "True Chad", color: "bg-teal-500" };
+            if (score <= 9.0) return { name: "Mogger", color: "bg-cyan-500" };
+            return { name: "True Mogger", color: "bg-indigo-500" };
+        }
+
+        function updateAIScores() {
+            const cheek = (Math.random() * 2 + 6.5).toFixed(1);
+            const eyes = (Math.random() * 2 + 6.0).toFixed(1);
+            const nose = (Math.random() * 2 + 6.2).toFixed(1);
+            const hair = (Math.random() * 2 + 6.8).toFixed(1);
+            
+            const overall = ((parseFloat(cheek) + parseFloat(eyes) + parseFloat(nose) + parseFloat(hair)) / 4).toFixed(1);
+            const tierInfo = getTierName(parseFloat(overall));
+
+            document.getElementById('stat-cheek').innerText = cheek;
+            document.getElementById('stat-eyes').innerText = eyes;
+            document.getElementById('stat-nose').innerText = nose;
+            document.getElementById('stat-hair').innerText = hair;
+            
+            document.getElementById('local-score').innerText = overall + '/10';
+            const tierBadge = document.getElementById('local-tier');
+            tierBadge.innerText = tierInfo.name;
+            tierBadge.className = `${tierInfo.color} text-black text-[10px] font-black px-1.5 py-0.5 rounded`;
+        }
+
+        function toggleMic() {
+            if (!localStream) return;
+            isMicMuted = !isMicMuted;
+            localStream.getAudioTracks().forEach(track => track.enabled = !isMicMuted);
+            const btn = document.getElementById('mic-btn');
+            btn.innerHTML = isMicMuted ? '<i class="fa-solid fa-microphone-slash text-rose-400"></i>' : '<i class="fa-solid fa-microphone"></i>';
+            btn.className = isMicMuted ? 'bg-rose-500/20 border border-rose-500/40 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center' : 'bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center';
+        }
+
+        function toggleCam() {
+            if (!localStream) return;
+            isCamOff = !isCamOff;
+            localStream.getVideoTracks().forEach(track => track.enabled = !isCamOff);
+            const btn = document.getElementById('cam-btn');
+            btn.innerHTML = isCamOff ? '<i class="fa-solid fa-video-slash text-rose-400"></i>' : '<i class="fa-solid fa-video"></i>';
+            btn.className = isCamOff ? 'bg-rose-500/20 border border-rose-500/40 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center' : 'bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl transition-all text-sm w-11 h-11 flex items-center justify-center';
+        }
+
+        function adjustExposure(val) {
+            const videoElement = document.getElementById('local-video');
+            videoElement.style.filter = `brightness(${val}%)`;
+        }
+
+        function skipPartner() {
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.innerHTML += `<div class="text-center text-zinc-500 italic">Skipped partner. Finding new match...</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function leaveArena() {
+            if(localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('arena-interface').classList.add('hidden');
+            document.getElementById('setup-modal').classList.remove('hidden');
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            const chatBox = document.getElementById('chat-messages');
+            const username = document.getElementById('display-username').innerText;
+
+            chatBox.innerHTML += `<div><span class="font-bold text-emerald-400">${username}:</span> <span class="text-zinc-200">${escapeHtml(text)}</span></div>`;
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function handleChatKey(e) {
+            if(e.key === 'Enter') sendMessage();
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
