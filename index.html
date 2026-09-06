@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MogMeNow - AI Facial Rating & Global Chat</title>
+    <title>MogMeNow - Global Mogging Arena</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -23,6 +23,14 @@
             border: 1px solid rgba(0, 255, 128, 0.2);
             box-shadow: inset 0 0 15px rgba(0, 255, 128, 0.05);
         }
+        @keyframes radar {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 0.3; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .radar-pulse {
+            animation: radar 2s infinite ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 font-sans min-h-screen flex flex-col selection:bg-emerald-500 selection:text-black">
@@ -32,12 +40,16 @@
             <div class="bg-emerald-500 text-black font-black px-3 py-1.5 rounded-lg tracking-wider text-lg shadow-lg shadow-emerald-500/20">
                 MOG<span class="text-white">ME</span>NOW
             </div>
-            <span class="text-xs text-zinc-400 hidden sm:inline border-l border-zinc-700 pl-3">AI-Powered Global Arena</span>
+            <span class="text-xs text-zinc-400 hidden sm:inline border-l border-zinc-700 pl-3">Find & Mog Opponents</span>
         </div>
         <div class="flex items-center space-x-4">
+            <div id="room-badge" class="hidden items-center space-x-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs">
+                <span class="text-zinc-400">ROOM:</span>
+                <span id="display-room-code" class="font-mono font-bold text-emerald-400"></span>
+            </div>
             <div class="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-full border border-zinc-700 text-xs">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span class="font-mono text-emerald-400">ONLINE: 42,819</span>
+                <span class="font-mono text-emerald-400" id="online-count">ONLINE: 42,819</span>
             </div>
         </div>
     </header>
@@ -49,7 +61,7 @@
                 <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
                 
                 <h2 class="text-2xl font-black mb-1 tracking-tight text-white">ENTER THE ARENA</h2>
-                <p class="text-xs text-zinc-400 mb-6">No account needed. Setup your alias and jump straight in.</p>
+                <p class="text-xs text-zinc-400 mb-6">Find the best mogger online or host a private room.</p>
 
                 <div class="space-y-4">
                     <div>
@@ -68,9 +80,46 @@
                         </div>
                     </div>
 
-                    <button onclick="startMatchmaking()" class="w-full mt-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-sm tracking-wide">
-                        START MOGGING <i class="fa-solid fa-arrow-right ml-2"></i>
+                    <div class="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-3">
+                        <button onclick="hostPrivateRoom()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold py-3 rounded-xl border border-zinc-700 transition-all text-xs flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-key text-emerald-400"></i>
+                            <span>Host Party</span>
+                        </button>
+                        <button onclick="openJoinModal()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold py-3 rounded-xl border border-zinc-700 transition-all text-xs flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-right-to-bracket text-emerald-400"></i>
+                            <span>Join Code</span>
+                        </button>
+                    </div>
+
+                    <button onclick="startMatchmaking('public')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-sm tracking-wide">
+                        FIND A MOGGER <i class="fa-solid fa-arrow-right ml-2"></i>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="searching-overlay" class="absolute inset-0 z-50 bg-zinc-950/95 backdrop-blur-xl hidden flex flex-col items-center justify-center p-4">
+            <div class="relative w-40 h-40 flex items-center justify-center mb-6">
+                <div class="absolute inset-0 rounded-full border border-emerald-500/20 radar-pulse"></div>
+                <div class="absolute inset-4 rounded-full border border-emerald-500/40 radar-pulse" style="animation-delay: 0.5s;"></div>
+                <div class="absolute inset-8 rounded-full border border-emerald-500/60 radar-pulse" style="animation-delay: 1s;"></div>
+                <div class="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 font-black text-xl shadow-lg shadow-emerald-500/30">
+                    <i class="fa-solid fa-radar animate-spin"></i>
+                </div>
+            </div>
+            <h3 class="text-xl font-black text-white mb-2 tracking-tight">SCANNING GLOBAL SERVERS...</h3>
+            <p id="searching-status" class="text-xs text-emerald-400 font-mono mb-6">Detecting online moggers...</p>
+            <button onclick="cancelSearch()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-6 py-2.5 rounded-xl text-xs border border-zinc-700">Cancel Search</button>
+        </div>
+
+        <div id="join-modal" class="absolute inset-0 z-50 bg-zinc-950/90 backdrop-blur-xl hidden items-center justify-center p-4">
+            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl">
+                <h3 class="text-lg font-bold mb-2 text-white">Join Private Room</h3>
+                <p class="text-xs text-zinc-400 mb-4">Enter the room code shared by the host.</p>
+                <input type="text" id="room-code-input" placeholder="e.g. MOG-7721" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm mb-4 uppercase font-mono tracking-wider focus:outline-none focus:border-emerald-500">
+                <div class="flex space-x-2">
+                    <button onclick="closeJoinModal()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button onclick="joinPrivateRoom()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-2.5 rounded-xl text-xs">Join Room</button>
                 </div>
             </div>
         </div>
@@ -115,17 +164,18 @@
                     </div>
 
                     <div class="relative rounded-2xl overflow-hidden hud-border bg-zinc-900 flex items-center justify-center">
-                        <div class="absolute inset-0 bg-cover bg-center opacity-70" style="background-image: url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80')"></div>
+                        <div id="opponent-video-container" class="absolute inset-0 bg-cover bg-center opacity-85 transition-all duration-500" style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80')"></div>
                         <div class="scanner-line"></div>
 
                         <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center space-x-2">
                             <span class="text-xs text-zinc-400 font-mono">AI SCORE:</span>
-                            <span class="text-emerald-400 font-mono font-black text-sm">8.6/10</span>
-                            <span class="bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded">Mogger</span>
+                            <span id="opponent-score" class="text-emerald-400 font-mono font-black text-sm">8.1/10</span>
+                            <span id="opponent-tier" class="bg-cyan-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded">Mogger</span>
                         </div>
 
-                        <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-zinc-300">
-                            Opponent (Sofia_99)
+                        <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-zinc-300 flex items-center space-x-2">
+                            <span id="opponent-name" class="font-bold text-white">ApexPredator</span>
+                            <span id="opponent-country" class="text-emerald-400 text-[10px]">🇺🇸</span>
                         </div>
                     </div>
 
@@ -146,8 +196,8 @@
                     </div>
 
                     <div class="flex items-center space-x-3">
-                        <button onclick="skipPartner()" class="bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all tracking-wide">
-                            SKIP (ESC)
+                        <button onclick="skipPartner()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-5 py-2.5 rounded-xl font-bold text-xs transition-all tracking-wide">
+                            FIND NEXT MOGGER (ESC)
                         </button>
                         <button onclick="leaveArena()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-5 py-2.5 rounded-xl font-bold text-xs transition-all tracking-wide">
                             DISCONNECT
@@ -163,7 +213,7 @@
                 </div>
                 
                 <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs flex flex-col">
-                    <div class="text-center text-zinc-500 my-auto">Connected to global match session. Say hi!</div>
+                    <div class="text-center text-zinc-500 my-auto">Paired with global online mogger. Say hi!</div>
                 </div>
 
                 <div class="p-3 border-t border-zinc-800 flex items-center space-x-2">
@@ -184,6 +234,17 @@
         let localStream = null;
         let isMicMuted = false;
         let isCamOff = false;
+        let activeRoomCode = null;
+        let isSearching = false;
+
+        const mockOpponents = [
+            { name: "ApexPredator", country: "🇺🇸", score: "8.1", tier: "Mogger", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80" },
+            { name: "NordicGod", country: "🇸🇪", score: "9.2", tier: "True Mogger", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80" },
+            { name: "JawlineKing", country: "🇬🇧", score: "7.9", tier: "True Chad", img: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=800&q=80" },
+            { name: "Sofia_99", country: "🇧🇷", score: "8.6", tier: "Mogger", img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80" },
+            { name: "AlphaSigma", country: "🇯🇵", score: "6.8", tier: "Chad", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=800&q=80" },
+            { name: "ZaynLookalike", country: "🇦🇺", score: "8.4", tier: "True Chad", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80" }
+        ];
 
         function setMode(mode) {
             currentMode = mode;
@@ -196,11 +257,86 @@
             });
         }
 
-        async function startMatchmaking() {
+        function hostPrivateRoom() {
+            const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            let code = "MOG-";
+            for (let i = 0; i < 4; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            activeRoomCode = code;
+            startMatchmaking('private', code);
+        }
+
+        function openJoinModal() {
+            document.getElementById('join-modal').classList.remove('hidden');
+            document.getElementById('join-modal').classList.add('flex');
+        }
+
+        function closeJoinModal() {
+            document.getElementById('join-modal').classList.add('hidden');
+            document.getElementById('join-modal').classList.remove('flex');
+        }
+
+        function joinPrivateRoom() {
+            const codeInput = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if(!codeInput) {
+                alert("Please enter a valid room code.");
+                return;
+            }
+            activeRoomCode = codeInput;
+            closeJoinModal();
+            startMatchmaking('private', activeRoomCode);
+        }
+
+        function cancelSearch() {
+            isSearching = false;
+            document.getElementById('searching-overlay').classList.add('hidden');
+            document.getElementById('setup-modal').classList.remove('hidden');
+        }
+
+        async function startMatchmaking(type = 'public', roomCode = null) {
             const username = document.getElementById('username-input').value.trim() || 'Anon_Mogger';
             document.getElementById('display-username').innerText = username;
 
+            if (type === 'private' && roomCode) {
+                document.getElementById('display-room-code').innerText = roomCode;
+                document.getElementById('room-badge').classList.remove('hidden');
+                document.getElementById('room-badge').classList.add('flex');
+                proceedToArena();
+            } else {
+                document.getElementById('room-badge').classList.add('hidden');
+                document.getElementById('setup-modal').classList.add('hidden');
+                document.getElementById('searching-overlay').classList.remove('hidden');
+                
+                isSearching = true;
+                const statuses = [
+                    "Scanning global server nodes...",
+                    "Filtering active online moggers...",
+                    "Matching facial structures...",
+                    "Found optimal opponent!"
+                ];
+                
+                let step = 0;
+                const interval = setInterval(() => {
+                    if (!isSearching) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    if (step < statuses.length) {
+                        document.getElementById('searching-status').innerText = statuses[step];
+                        step++;
+                    } else {
+                        clearInterval(interval);
+                        document.getElementById('searching-overlay').classList.add('hidden');
+                        proceedToArena();
+                    }
+                }, 700);
+            }
+        }
+
+        async function proceedToArena() {
             document.getElementById('setup-modal').classList.add('hidden');
+            document.getElementById('searching-overlay').classList.add('hidden');
             document.getElementById('arena-interface').classList.remove('hidden');
 
             try {
@@ -211,8 +347,22 @@
                 console.warn("Camera access denied or unavailable. Running in simulated view mode.");
             }
 
-            // Start AI evaluation loop simulation
+            pickNewOpponent();
             setInterval(updateAIScores, 2000);
+        }
+
+        function pickNewOpponent() {
+            const randOpponent = mockOpponents[Math.floor(Math.random() * mockOpponents.length)];
+            document.getElementById('opponent-name').innerText = randOpponent.name;
+            document.getElementById('opponent-country').innerText = randOpponent.country;
+            document.getElementById('opponent-score').innerText = randOpponent.score + '/10';
+            const tierBadge = document.getElementById('opponent-tier');
+            tierBadge.innerText = randOpponent.tier;
+            document.getElementById('opponent-video-container').style.backgroundImage = `url('${randOpponent.img}')`;
+
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.innerHTML += `<div class="text-center text-emerald-400 font-bold my-1">⚡ Paired with ${randOpponent.name} (${randOpponent.country})!</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function getTierName(score) {
@@ -272,8 +422,9 @@
 
         function skipPartner() {
             const chatBox = document.getElementById('chat-messages');
-            chatBox.innerHTML += `<div class="text-center text-zinc-500 italic">Skipped partner. Finding new match...</div>`;
+            chatBox.innerHTML += `<div class="text-center text-zinc-500 italic">Skipping partner... finding next online mogger.</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
+            pickNewOpponent();
         }
 
         function leaveArena() {
